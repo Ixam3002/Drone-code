@@ -1,0 +1,33 @@
+title = "Project secret detection"
+
+[[rules]]
+id = "hardcoded-credentials"
+
+description = "Hardcoded password, token, API key or secret"
+
+regex = '''(?i)\b(password|passwd|pwd|api[_-]?key|secret|token|wifi[_-]?password|mqtt[_-]?password)\b\s*=\s*["'][^"']{4,}["']'''
+
+keywords = [
+    "password",
+    "passwd",
+    "pwd",
+    "api_key",
+    "api-key",
+    "secret",
+    "token",
+    "wifi_password",
+    "wifi-password",
+    "mqtt_password",
+    "mqtt-password"
+]
+
+[[rules]]
+id = "private-key"
+
+description = "Private key"
+
+regex = '''-----BEGIN (RSA|DSA|EC|OPENSSH|PGP|PRIVATE) PRIVATE KEY-----'''
+
+keywords = [
+    "PRIVATE KEY"
+]
