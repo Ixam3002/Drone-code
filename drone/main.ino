@@ -8,7 +8,6 @@
 Servo escA, escB, escC, escD;
 const int ESCA_PIN = 10, ESCB_PIN = 6, ESCC_PIN = 9, ESCD_PIN = 5; // Broche de signal PWM reliée à l'ESC
 
-const char* password = "Freebox-8013813";
 
 float kp_pitch = 1.49688032e+03, ki_pitch = 1.00000000e-02, kd_pitch = 4.68476324e+01;
 float kp_roll  = 2.5000000e+03,  ki_roll  = 1.0000000e-02,  kd_roll  = 9.9814911e+01;
