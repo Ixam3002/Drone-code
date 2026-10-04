@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../drone/test_moteur/banc d'essai"
+		},
+		{
+			"path": "../drone/Code"
+		},
+		{
+			"path": "../drone/Code/Drone-code"
+		}
+	],
+	"settings": {}
+}
