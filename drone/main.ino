@@ -19,7 +19,7 @@ float POIDS = 0.550; //kg
 
 
 void setup() {
-  
+
   // Attache des esc au moteur
   escA.attach(ESCA_PIN, 1000, 2000);
   escB.attach(ESCB_PIN, 1000, 2000);
@@ -29,26 +29,26 @@ void setup() {
 }
 
 void loop() {
-  
+
   // Definir les commandes de la manette -> Throttle, angle avec les joysticks
 
   float esc_throttle;
 
 
   float angles[3] = {1.2, -0.5, 0.1}; // Roll, Pitch, Yaw -> vient de la manette
-  
-  
-  float vitesse_z = 0.05; // c'est à calculer 
-  
+
+
+  float vitesse_z = 0.05; // c'est à calculer
+
 
   // Appel de la fonction
   CommandesMoteurs moteurs = calcul_correction_PID(angles, vitesse_z,
         Stab_Alt,
         (const float[]){0.0, 0.0, 0.0}, // angle_cible
-        kp_roll, kp_pitch, 0.1, kp_alt, 
-        ki_roll, ki_pitch, 0.005, ki_alt, 
+        kp_roll, kp_pitch, 0.1, kp_alt,
+        ki_roll, ki_pitch, 0.005, ki_alt,
         kd_roll, kd_pitch, 0.02, kd_alt
-  
+
   );
 
   // Envoie des commandes aux moteurs
