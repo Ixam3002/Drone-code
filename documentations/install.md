@@ -9,7 +9,7 @@ git clone git@github.com:Ixam3002/Drone-code.git
 cd Drone-code
 
 pip install pre-commit
-pre-commit install --config .github/workflows/.pre-commit-config.yaml
+pre-commit install
 ```
 
 ## Utilisation
@@ -27,5 +27,5 @@ Si un secret est détecté, **le commit est bloqué** et le fichier concerné es
 Pour lancer manuellement l'analyse :
 
 ```bash
-pre-commit run --all-files --config .github/workflows/.pre-commit-config.yaml
+pre-commit run --all-files
 ```
