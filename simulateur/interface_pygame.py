@@ -86,8 +86,8 @@ t = 0.0
 drone_demarre = False
 
 
-kp_pitch, ki_pitch, kd_pitch = 1.49688032e+03, 1.00000000e-02, 4.68476324e+01
-kp_roll, ki_roll, kd_roll = 2.5000000e+03, 1.0000000e-02, 9.9814911e+01
+kp_pitch, ki_pitch, kd_pitch = 14.0123754,   1.0, 10.0
+kp_roll, ki_roll, kd_roll = 20.0, 4.0, 16.0
 kp_alt, ki_alt, kd_alt = 4.98980340e+01, 8.24779880e-03, 1.34603797e+00
 
 axes_active = [True, True, True]  # [Roll, Pitch, Yaw]

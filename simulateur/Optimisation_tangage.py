@@ -24,6 +24,7 @@ l = dic["DONNEE DRONE"]["Moteur_l"]
 Mat_Inertie = np.array(dic["DONNEE DRONE"]["Matrice_Inertie"])
 
 FORCE_MAX_MOTEUR = dic["DONNEE DRONE"]["Force_MAX"]
+SEUIL_VIT_ANGULAIRE_MAX = 500.0
 
 ###############################
 # Conditions initiales & Config
@@ -34,7 +35,7 @@ k_frot = dic["SIMULATION"]["k_frot"]
 
 pos_in = np.array([0.0, 0.0, 5.0])
 angle_in = np.array([0.0, 0.0, 0.0])
-Stab_Alt = True
+Stab_Alt = False
 
 # Gains d'altitude modérés et stables (maintien Z ~ 5m)
 kp_alt, ki_alt, kd_alt = 4.98980340e+01, 8.24779880e-03, 1.34603797e+00
@@ -100,7 +101,7 @@ def simuler_drone(x):
         Poids_Moteur = Masse * g / (4 * cos_roll * cos_pitch)
         esc_Moteur = fct.calcul_force2commande(Poids_Moteur)
 
-        esc_m = esc_Moteur
+        esc_m = esc_Moteur 
 
         # 3. Correction PID pour le Tangage (index 1)
         esc_corr_A, esc_corr_B, esc_corr_C, esc_corr_D = asserv.calcul_correction_PID(
@@ -144,27 +145,38 @@ def simuler_drone(x):
             L, l
         )
 
+        pos_ancienne, pos_actuel = np.copy(pos_actuel), np.copy(pos)
+        angle_ancien, angle_actuel = np.copy(angle_actuel), np.copy(angle)
+
         # 6. Intégration dynamique (SANS écraser la position Z)
         pos = dyn.position(pos_actuel, pos_ancienne, Forces, Masse, Delta_t=delta_t)
-        # pos = np.array([pos[0], pos[1], 5])
+        pos = np.array([pos[0], pos[1], 5])
         angle = dyn.angle(angle_actuel, angle_ancien, Moments, Mat_Inertie, Delta_t=delta_t)
 
         vit = (pos - pos_actuel) / delta_t
+
+        # --- CALCUL DE LA VITESSE ANGULAIRE (°/s) ---
+        vitesse_angulaire_rad = (angle - angle_actuel) / delta_t
+        vitesse_angulaire_deg = np.degrees(vitesse_angulaire_rad)  # [w_roll, w_pitch, w_yaw] en °/s
+        norme_vit_angulaire = np.linalg.norm(vitesse_angulaire_deg)
+    
+        # Vérification du dépassement de la limite (225°/s)
+        alerte_vitesse_angulaire = np.any(np.abs(vitesse_angulaire_deg) > SEUIL_VIT_ANGULAIRE_MAX)
 
         # Sécurités : instabilité (> 90°) ou crash sol
         if np.isnan(angle).any() or np.isnan(pos).any() or abs(angle[0]) > (np.pi / 2) or abs(angle[1]) > (np.pi / 2):
             echec_simulation = True
             break
 
-        if pos[2] <= 0.0:
+        if pos[2] <= 0.0 or alerte_vitesse_angulaire:
             echec_simulation = True
             break
 
-        # Mise à jour des états
-        pos_ancienne = np.copy(pos_actuel)
-        pos_actuel = np.copy(pos)
-        angle_ancien = np.copy(angle_actuel)
-        angle_actuel = np.copy(angle)
+        # # Mise à jour des états
+        # pos_ancienne = np.copy(pos_actuel)
+        # pos_actuel = np.copy(pos)
+        # angle_ancien = np.copy(angle_actuel)
+        # angle_actuel = np.copy(angle)
 
         # 7. Historique & Calcul d'erreur ITAE
         historique_t.append(t)
@@ -204,14 +216,14 @@ def fonction_cout(x):
         return 1e6
 
     # Pénalise l'erreur d'angle et la dérive d'altitude
-    cout_total =  err_angle
+    cout_total =  2*err_angle + 1.0*err_vit_x
 
     return cout_total
 
 bornes = [
-    (0.01, 1500.0),  # Kp_pitch
-    (0.01, 50.0),  # Ki_pitch
-    (0.01, 100.0),  # Kd_pitch
+    (0.01, 30.0),  # Kp_pitch
+    (0.01, 20.0),  # Ki_pitch
+    (0.01, 20.0),  # Kd_pitch
 ]
 
 res = differential_evolution(
