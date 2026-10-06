@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+print(str(Path(__file__).resolve().parent))
+
 import asservissement as asserv
 import dynamique as dyn
 import fonctions as fct
@@ -26,6 +32,7 @@ Mat_Inertie = np.array(dic["DONNEE DRONE"]["Matrice_Inertie"])
 FORCE_MAX_MOTEUR = dic["DONNEE DRONE"]["Force_MAX"]
 SEUIL_VIT_ANGULAIRE_MAX = 500.0
 
+
 ###############################
 # Conditions initiales & Config
 ###############################
@@ -34,18 +41,18 @@ T_MAX = dic["SIMULATION"]["T_max"]  # Durée de simulation réduisant le temps d
 k_frot = dic["SIMULATION"]["k_frot"]
 
 pos_in = np.array([0.0, 0.0, 5.0])
-angle_in = np.array([0.0, 0.0, 0.0])
+angle_in = np.array([0.0, 0.0, 0.0]) # Départ à plat
+
 Stab_Alt = False
-
-# Gains d'altitude modérés et stables (maintien Z ~ 5m)
-kp_alt, ki_alt, kd_alt = 4.98980340e+01, 8.24779880e-03, 1.34603797e+00
+# Gains d'altitude modérés et stables pour maintenir Z ~ 5m
+kp_alt, ki_alt, kd_alt = 6.51000205e+03, 4.45073717e+02, 1.00000000e-02
 
 ###############################
-# Profil de consigne dynamique (Tangage / Pitch)
+# Profil de consigne dynamique (Roulis / Roll)
 ###############################
-def get_consigne_pitch(t):
+def get_consigne_roll(t):
     """
-    Génère une consigne dynamique de Tangage (en radians) en fonction du temps t.
+    Génère une consigne dynamique de Roulis (en radians) en fonction du temps t.
     """
     if t < 1.0:
         return np.radians(0.0)
@@ -54,14 +61,13 @@ def get_consigne_pitch(t):
     elif t < 6.0:
         return np.radians(-10.0)  # Échelon -10° (Inclinaison gauche)
     else:
-        return np.radians(0.0)     # Retour au neutre
+        return np.radians(0.0)    # Retour au neutre
 
 ###############################
 # Fonction de simulation
-
 ###############################
 def simuler_drone(x):
-    kp_pitch, ki_pitch, kd_pitch = x
+    kp_roll, ki_roll, kd_roll = x
 
     Poids_global = np.array([0.0, 0.0, -Masse * g])
 
@@ -79,38 +85,37 @@ def simuler_drone(x):
     vit = np.array([0.0, 0.0, 0.0])
 
     historique_t = []
-    historique_pitch = []
+    historique_roll = []
     historique_consigne = []
     historique_z = []
-    historique_vit_x = []
+    historique_vit_y = []
 
     erreur_angle_cumulee = 0.0
     erreur_alt_cumulee = 0.0
-    erreur_vit_x_cumulee = 0.0
+    erreur_vit_y_cumulee = 0.0
     echec_simulation = False
 
     while N < N_max:
-        # 1. Lecture de la consigne dynamique à l'instant t
-        pitch_cible = get_consigne_pitch(t)
+        # 1. Lecture de la consigne dynamique
+        roll_cible = get_consigne_roll(t)
 
         # 2. Poussée de stationnaire d'équilibre compensée
         cos_roll = np.cos(angle_actuel[0])
         cos_pitch = np.cos(angle_actuel[1])
-
-
+        
         Poids_Moteur = Masse * g / (4 * cos_roll * cos_pitch)
         esc_Moteur = fct.calcul_force2commande(Poids_Moteur)
 
-        esc_m = esc_Moteur 
+        esc_m = esc_Moteur
 
-        # 3. Correction PID pour le Tangage (index 1)
+        # 3. Correction PID pour le Roulis
         esc_corr_A, esc_corr_B, esc_corr_C, esc_corr_D = asserv.calcul_correction_PID(
             angle_actuel,
             vit[2],
             altitude_corr=Stab_Alt,
-            angle_cible=np.array([0.0, pitch_cible, 0.0]), # Index 1 = Pitch (Tangage)
-            Kp_roll=0.0,      Ki_roll=0.0,      Kd_roll=0.0,
-            Kp_pitch=kp_pitch, Ki_pitch=ki_pitch, Kd_pitch=kd_pitch,
+            angle_cible=np.array([roll_cible, 0.0, 0.0]), # Index 0 = Roll (Roulis)
+            Kp_roll=kp_roll,  Ki_roll=ki_roll,  Kd_roll=kd_roll,
+            Kp_pitch=0.0,     Ki_pitch=0.0,     Kd_pitch=0.0,
             Kp_yaw=0.1,       Ki_yaw=0.005,     Kd_yaw=0.02,
             Kp_alt=kp_alt,    Ki_alt=ki_alt,    Kd_alt=kd_alt,
             delta_t=delta_t,
@@ -128,7 +133,7 @@ def simuler_drone(x):
         f_C = np.clip(f_corr_C, 0.0, FORCE_MAX_MOTEUR)
         f_D = np.clip(f_corr_D, 0.0, FORCE_MAX_MOTEUR)
 
-        # 5. Calcul des forces, frottements et moments
+        # 5. Forces, frottements et moments
         vitesse_lin_norme = np.linalg.norm(vit)
         F_frot = -k_frot * vitesse_lin_norme * vit
 
@@ -145,17 +150,14 @@ def simuler_drone(x):
             L, l
         )
 
-        pos_ancienne, pos_actuel = np.copy(pos_actuel), np.copy(pos)
-        angle_ancien, angle_actuel = np.copy(angle_actuel), np.copy(angle)
-
-        # 6. Intégration dynamique (SANS écraser la position Z)
+        # 6. Intégration temporelle de la dynamique
         pos = dyn.position(pos_actuel, pos_ancienne, Forces, Masse, Delta_t=delta_t)
         pos = np.array([pos[0], pos[1], 5])
         angle = dyn.angle(angle_actuel, angle_ancien, Moments, Mat_Inertie, Delta_t=delta_t)
 
         vit = (pos - pos_actuel) / delta_t
 
-        # --- CALCUL DE LA VITESSE ANGULAIRE (°/s) ---
+         # --- CALCUL DE LA VITESSE ANGULAIRE (°/s) ---
         vitesse_angulaire_rad = (angle - angle_actuel) / delta_t
         vitesse_angulaire_deg = np.degrees(vitesse_angulaire_rad)  # [w_roll, w_pitch, w_yaw] en °/s
         norme_vit_angulaire = np.linalg.norm(vitesse_angulaire_deg)
@@ -163,7 +165,8 @@ def simuler_drone(x):
         # Vérification du dépassement de la limite (225°/s)
         alerte_vitesse_angulaire = np.any(np.abs(vitesse_angulaire_deg) > SEUIL_VIT_ANGULAIRE_MAX)
 
-        # Sécurités : instabilité (> 90°) ou crash sol
+
+        # Sécurités : divergence d'angle (> 90°) ou crash au sol
         if np.isnan(angle).any() or np.isnan(pos).any() or abs(angle[0]) > (np.pi / 2) or abs(angle[1]) > (np.pi / 2):
             echec_simulation = True
             break
@@ -172,23 +175,23 @@ def simuler_drone(x):
             echec_simulation = True
             break
 
-        # # Mise à jour des états
-        # pos_ancienne = np.copy(pos_actuel)
-        # pos_actuel = np.copy(pos)
-        # angle_ancien = np.copy(angle_actuel)
-        # angle_actuel = np.copy(angle)
+        # Mise à jour des états
+        pos_ancienne = np.copy(pos_actuel)
+        pos_actuel = np.copy(pos)
+        angle_ancien = np.copy(angle_actuel)
+        angle_actuel = np.copy(angle)
 
-        # 7. Historique & Calcul d'erreur ITAE
+        # 7. Historique & calcul des erreurs (ITAE)
         historique_t.append(t)
-        historique_pitch.append(np.degrees(angle[1]))
-        historique_consigne.append(np.degrees(pitch_cible))
+        historique_roll.append(np.degrees(angle[0]))
+        historique_consigne.append(np.degrees(roll_cible))
         historique_z.append(pos[2])
-        historique_vit_x.append(vit[0])
+        historique_vit_y.append(vit[1])
 
-        err_pitch_instatanee = abs(angle[1] - pitch_cible)
-        erreur_angle_cumulee += t * err_pitch_instatanee * delta_t
+        err_roll_instantanée = abs(angle[0] - roll_cible)
+        erreur_angle_cumulee += t * err_roll_instantanée * delta_t
         erreur_alt_cumulee += t * abs(pos[2] - pos_in[2]) * delta_t
-        erreur_vit_x_cumulee += t * abs(vit[0]) * delta_t
+        erreur_vit_y_cumulee += t * abs(vit[1]) * delta_t
 
         t += delta_t
         N += 1
@@ -197,33 +200,34 @@ def simuler_drone(x):
         t,
         erreur_angle_cumulee,
         erreur_alt_cumulee,
-        erreur_vit_x_cumulee,
+        erreur_vit_y_cumulee,
         echec_simulation,
         historique_t,
-        historique_pitch,
+        historique_roll,
         historique_consigne,
         historique_z,
-        historique_vit_x,
+        historique_vit_y,
     )
 
 ###############################
 # Fonction Coût & Optimisation
 ###############################
 def fonction_cout(x):
-    t_stab, err_angle, err_alt, err_vit_x, echec, _, _, _, _, _ = simuler_drone(x)
+    t_stab, err_angle, err_alt, err_vit_y, echec, _, _, _, _, _ = simuler_drone(x)
 
     if echec:
         return 1e6
 
-    # Pénalise l'erreur d'angle et la dérive d'altitude
-    cout_total =  2*err_angle + 1.0*err_vit_x
+    # Pénalise l'erreur de suivi d'angle et la dérive d'altitude
+    cout_total = 2*err_angle + err_vit_y
 
     return cout_total
 
+# Bornes raisonnables pour le Roulis d'un quadricoptère de 500g
 bornes = [
-    (0.01, 30.0),  # Kp_pitch
-    (0.01, 20.0),  # Ki_pitch
-    (0.01, 20.0),  # Kd_pitch
+    (0.01, 2500.0),  # Kp_roll
+    (0.01, 50.0),  # Ki_roll
+    (0.01, 100.0),  # Kd_roll
 ]
 
 res = differential_evolution(
@@ -233,24 +237,24 @@ res = differential_evolution(
     mutation=(0.5, 1.0),
     recombination=0.7,
     maxiter=40,
-    # workers=-1  # Multi-threading pour accélérer le calcul
+    # workers=-1  # Utilise tous les cœurs CPU disponibles
 )
 
-print("Gains Tangage optimaux [Kp_pitch, Ki_pitch, Kd_pitch] :", res.x)
+print("Gains Roulis optimaux [Kp_roll, Ki_roll, Kd_roll] :", res.x)
 
-# Affichage des résultats
+# Validation et affichage des résultats
 (
-    _, _, _, _, echec_opt, hist_t, hist_pitch, hist_consigne, hist_z, hist_vit_x
+    _, _, _, _, echec_opt, hist_t, hist_roll, hist_consigne, hist_z, hist_vit_y
 ) = simuler_drone(res.x)
 
 if not echec_opt:
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
 
-    # 1. Tangage vs Consigne
-    ax1.plot(hist_t, hist_pitch, "b-", linewidth=1.5, label="Tangage Réel (°)")
-    ax1.plot(hist_t, hist_consigne, "r--", linewidth=1.5, label="Consigne Dynamique (°)")
+    # 1. Roulis vs Consigne
+    ax1.plot(hist_t, hist_roll, "b-", linewidth=1.5, label="Roulis Réel (°)")
+    ax1.plot(hist_t, hist_consigne, "r--", linewidth=1.5, label="Consigne (°)")
     ax1.set_ylabel("Angle (°)")
-    ax1.set_title("Suivi de Consigne Dynamique (Tangage)")
+    ax1.set_title("Suivi de Consigne Dynamique (Roulis / Roll)")
     ax1.grid(True)
     ax1.legend()
 
@@ -260,10 +264,10 @@ if not echec_opt:
     ax2.grid(True)
     ax2.legend()
 
-    # 3. Vitesse Vx
-    ax3.plot(hist_t, hist_vit_x, "m-", linewidth=1.5, label="Vitesse $V_x$ (m/s)")
+    # 3. Vitesse Vy (engendrée par le roulis)
+    ax3.plot(hist_t, hist_vit_y, "m-", linewidth=1.5, label="Vitesse $V_y$ (m/s)")
     ax3.set_xlabel("Temps (s)")
-    ax3.set_ylabel("$V_x$ (m/s)")
+    ax3.set_ylabel("$V_y$ (m/s)")
     ax3.grid(True)
     ax3.legend()
 

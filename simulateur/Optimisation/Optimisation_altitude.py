@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+print(str(Path(__file__).resolve().parent))
+
 import asservissement as asserv
 import dynamique as dyn
 import fonctions as fct

@@ -2,6 +2,10 @@ import sys
 import math
 import numpy as np
 import pygame
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+print(str(Path(__file__).resolve().parent))
 
 # Imports de tes modules existants
 import asservissement as asserv

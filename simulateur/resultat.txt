@@ -25,3 +25,13 @@ pitch : 14.0123754   0.05101609 20. -> back to 0 very low du to low coefficient 
 SIMULATION dt = 0.015s test in interface_pygame
 pitch : 14.0123754   1.0 10.0 -> best result very rapid and smooth
 roll : 20.0, 4.0, 16.0 -> very good and smooth
+roll : 65.0, 2.0, 15.0 -> very good a little more rapid but slower than pitch
+
+
+
+simulation dt = 0.015s tests in interface_Panda3D_moniteur
+
+pitch : 15.0, 4.0, 12.0
+roll : 150.0, 10.0, 30.0
+
+-> both are rapid and enough smooth
