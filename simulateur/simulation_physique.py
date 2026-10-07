@@ -33,6 +33,7 @@ class DroneSimulation:
 
         self.delta_t = dic["SIMULATION"]["delta_t"]
         self.k_frot = dic["SIMULATION"]["k_frot"]
+        self.angle_max = 45
 
         # Gains PID modifiables
         self.pid_gains = {
@@ -94,10 +95,8 @@ class DroneSimulation:
         if self.drone_demarre:
             esc_com = fct.calcul_commande2controleur(self.POWER)
             esc_throttle = np.clip(esc_com + esc_Moteur, 1000, 1800)
-            cmd_angle_roll = stick_gx * 45 * np.pi / 180
-            cmd_angle_pitch = -stick_gy * 45 * np.pi / 180
-
-            print("cmd roll", cmd_angle_roll)
+            cmd_angle_roll = stick_gx * self.angle_max * np.pi / 180
+            cmd_angle_pitch = -stick_gy * self.angle_max * np.pi / 180
 
         else:
             cmd_angle_roll = 0.0
@@ -181,10 +180,19 @@ def commande(temps):
         return 0, 0, 0
 
     elif temps < 4:
-        return 1, 0, 0
+        return 0, -1, 0
 
     else:
         return 0, 0, 0
+
+def test_stab(liste_bool):
+    imax = 0
+
+    for i in range (1, len(liste_bool)):
+        if liste_bool[i] and not(liste_bool[i-1]):
+            imax = i
+
+    return imax
 
 
 if __name__ == "__main__":
@@ -192,16 +200,19 @@ if __name__ == "__main__":
     simu = DroneSimulation()
     simu.toggle_motors()  # Démarre le drone (sinon les moteurs restent à 0)
 
-    simu.pid_gains["roll"]["kp"] = 150.0
-    simu.pid_gains["roll"]["ki"] = 10.0
+    simu.pid_gains["roll"]["kp"] = 120.0
+    simu.pid_gains["roll"]["ki"] = 0.8
     simu.pid_gains["roll"]["kd"] = 30.0
 
-    simu.pid_gains["pitch"]["kp"] = 15.0
-    simu.pid_gains["pitch"]["ki"] = 4.0
+    simu.pid_gains["pitch"]["kp"] = 30.0
+    simu.pid_gains["pitch"]["ki"] = 1.0
     simu.pid_gains["pitch"]["kd"] = 12.0
 
+    simu.angle_max = 45.0
 
-    fichier = open("simulation_tangage_haut", "w")
+    angle = "pitch"
+
+    fichier = open(f"Results_stabilization/simulation_{angle}_{simu.angle_max}deg.txt", "w")
 
     # 2. Paramètres de la boucle
     duree_simulation = 6.0 # Durée en secondes
@@ -214,8 +225,7 @@ if __name__ == "__main__":
     stick_gy = 0.0
     stick_dy = 0.0
 
-    liste_tangage = []
-    liste_roulis = []
+    liste_angle = []
 
     # 3. Boule de simulation
     for _ in range(nb_pas):
@@ -230,28 +240,44 @@ if __name__ == "__main__":
         pitch_deg = np.degrees(simu.angle[1])
         roll_deg = np.degrees(simu.angle[0])
 
-        liste_tangage.append(pitch_deg)
-        liste_roulis.append(roll_deg)
+        liste_angle.append(pitch_deg)
 
-        fichier.write(f"{yaw_deg:.2f}°, {pitch_deg:.2f}°, {roll_deg:.2f}°")
+        fichier.write(f" {roll_deg:.2f}, {pitch_deg:.2f},  {yaw_deg:.2f} \n")
 
 
-    liste_temps = np.array([i for i in range (len(liste_roulis))]) * simu.delta_t
+    liste_temps = np.array([i for i in range (len(liste_angle))]) * simu.delta_t
 
     mask_temps = liste_temps > 4
-    liste_roulis = np.array(liste_roulis)
-    # print(liste_roulis[mask_temps])
-    mask_roulis = abs(liste_roulis[mask_temps]) < 0.07
+    liste_angle = np.array(liste_angle)
+    # print(liste_angle[mask_temps])
+    mask_roulis_stab = abs(liste_angle[mask_temps]) < 0.1
+    mask_roulis_stab = np.concatenate([[False for _ in range(len(liste_temps)-len(mask_roulis_stab))], mask_roulis_stab])
 
-    mask_roulis = np.concatenate([[False for _ in range(len(liste_temps)-len(mask_roulis))], mask_roulis])
+    mask_roulis_cmd = abs(abs(liste_angle) - simu.angle_max) < 0.1
 
-    print((liste_temps[mask_roulis]))
+    cmd_angle = [-1 * commande(liste_temps[i])[1]* simu.angle_max for i in range (len(liste_temps))]
+
+    fichier.write("############################ \n")
+    fichier.write("Stabilization \n")
+    fichier.write("############################ \n")
+    fichier.write(f"cmd : {liste_temps[test_stab(mask_roulis_cmd)]}, back to 0deg : {liste_temps[test_stab(mask_roulis_stab)]}\n")
+    fichier.write(f"Time stabilization \n")
+    fichier.write(f"cmd : {(liste_temps[test_stab(mask_roulis_cmd)] - 2.0):.3f}, back to 0deg : {(liste_temps[test_stab(mask_roulis_stab)] - 4.0):.3f} \n")
+
+    fichier.close()
 
     plt.figure()
-    plt.plot(liste_temps, liste_roulis)
-    plt.xlabel("temps (s)")
-    plt.ylabel("angle tangage")
-    plt.vlines([liste_temps[mask_roulis][0]], -10, 60, colors="red")
+    plt.plot(liste_temps, liste_angle, label='roll angle')
+    plt.plot(liste_temps, cmd_angle, label="command", color = 'black', linestyle='--')
+    plt.xlabel("time (s)")
+    plt.ylabel(f"{angle} angle")
+    plt.vlines([liste_temps[test_stab(mask_roulis_stab)]], -50, 50, colors="red")
+    plt.vlines([liste_temps[test_stab(mask_roulis_cmd)]], -50, 50, colors="red")
+    plt.title(f"Stabilization {angle} angle, command {simu.angle_max} deg")
+    plt.ylim((-simu.angle_max - 2.0, simu.angle_max + 2.0))
+    plt.grid()
+    plt.legend()
+    plt.savefig(f"Results_stabilization/Stabilization {angle} angle, command {simu.angle_max} deg.png")
     plt.show()
     
 
