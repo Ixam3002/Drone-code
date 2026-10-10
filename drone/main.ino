@@ -27,11 +27,11 @@ float Throttle = 1435;
 
 float POIDS = 0.610; //kg
 
-float stick_lx = 0, float stick_ly = 0, float stick_rx = 0, float stick_ry = 0;
-bool button_A = false, bool button_B = false, bool button_X = false, bool button_Y = false;
+float stick_lx = 0; float stick_ly = 0; float stick_rx = 0; float stick_ry = 0;
+bool button_A = false; bool button_B = false; bool button_X = false; bool button_Y = false;
 bool button_RB = false;
 
-float target_angle[3], float angles[3], float accel[3];
+float target_angle[3]; float angles[3]; float accel[3];
 
 
 MpuData mpu;
@@ -115,14 +115,11 @@ void loop() {
 
   target_angle[3] = {cmd.roll, cmd.pitch, cmd.yaw};
 
-  if (button_RB){
-    if (ARMED){
-      ARMED = false;
-    }
-    else{
-      ARMED = true;
-    }
+  // Detection when button RB is pressed
+  if (button_RB && !button_RB_prec) {
+    ARMED = !ARMED; // State inversion
   }
+  button_RB_prec = button_RB; // Save the new state
 
   // uint32_t currentMicros = micros();
 
@@ -130,12 +127,17 @@ void loop() {
 
   //Reading MPU
   MPU_Angles_ACC(mpu);
-  angles[3] = {mpu.roll, mpu.pitch, mpu.yaw};
-  accel[3] = {mpu.linAccX_world, mpu.linAccY_world, mpu.linAccZ_world};
+  angles[0] = mpu.roll;
+  angles[1] = mpu.pitch;
+  angles[2] = mpu.yaw;
+  
+  accel[0] = mpu.linAccX_world;
+  accel[1] = mpu.linAccY_world;
+  accel[2] = mpu.linAccZ_world;
 
   float vitesse_z = 0.0; // TODO : must be calculated
 
-  Throttle += cmd.throttle;
+  Throttle += cmd.throttle; //TODO maybe necessary to modify
 
   // Calcul PID correction
   CommandesMoteurs motors = calcul_correction_PID(angles, vitesse_z,
