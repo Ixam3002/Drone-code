@@ -27,7 +27,7 @@ float Throttle = 1435;
 
 float POIDS = 0.610; //kg
 
-float stick_gx = 0, float stick_gy = 0, float stick_dx = 0, float stick_dy = 0;
+float stick_lx = 0, float stick_ly = 0, float stick_rx = 0, float stick_ry = 0;
 bool button_A = false, bool button_B = false, bool button_X = false, bool button_Y = false;
 bool button_RB = false;
 
@@ -35,6 +35,14 @@ float target_angle[3], float angles[3], float accel[3];
 
 
 MpuData mpu;
+
+struct __attribute__((packed)) Packet {
+  uint8_t header;
+  float lx, ly, rx, ry;
+  uint8_t rb;
+  uint8_t checksum;
+};
+
 
 // Function interruption (ISR)
 void interruptionRadio() {
@@ -46,9 +54,21 @@ void setup() {
 
   Serial.begin(115200);
 
-  //attach interruption on the pin D7 
+  if (!radio.begin()) {
+    Serial.println("NRF24L01 non detecte !");
+    while (1);
+  }
+
+  radio.setPALevel(RF24_PA_LOW);
+  radio.setDataRate(RF24_250KBPS);
+  radio.openReadingPipe(0, adresse);
+  radio.startListening();
+
+  Serial.println("Recepteur pret");
+
+  //attach interruption on the pin D7
   attachInterrupt(digitalPinToInterrupt(7), interruptionRadio, FALLING);
-  
+
   // Attache des esc au moteur
   escA.attach(ESCA_PIN, 1000, 2000);
   escB.attach(ESCB_PIN, 1000, 2000);
@@ -66,25 +86,33 @@ void setup() {
 }
 
 void loop() {
-  
+
   // TODO Reception Radio
 
   if (NewMessage) {
-    // Radio data processing 
+    Packet p;
+    radio.read(&p, sizeof(p));
 
-    //stick_gx = ;   stick_gy = ;  stick_dx = ;  stick_dy = ;
-    //button_RB = ;
 
-    //send angles pitch and roll, no calcul !!
-    // angles[0], angles[1], angles[2];
-
+    Serial.println(p.rb);
+    stick_lx = p.lx;
+    stick_ly = p.ly;
+    stick_rx = p.rx;
+    stick_ry = p.ry;
+    button_RB = p.button_RB;
     NewMessage = false;
   }
- 
-  CommandJoystick cmd = joystick2angle (stick_gx, stick_gy, 
-                                        stick_dx, stick_dy,
+  else{
+      stick_lx = 0;
+      stick_ly = 0;
+      stick_rx = 0;
+      stick_ry = 0;
+      button_RB = 0;
+  }
+  CommandJoystick cmd = joystick2angle (stick_lx, stick_ly,
+                                        stick_rx, stick_ry,
                                         ANGLE_MAX);
-  
+
   target_angle[3] = {cmd.roll, cmd.pitch, cmd.yaw};
 
   if (button_RB){
@@ -104,9 +132,9 @@ void loop() {
   MPU_Angles_ACC(mpu);
   angles[3] = {mpu.roll, mpu.pitch, mpu.yaw};
   accel[3] = {mpu.linAccX_world, mpu.linAccY_world, mpu.linAccZ_world};
-  
+
   float vitesse_z = 0.0; // TODO : must be calculated
-  
+
   Throttle += cmd.throttle;
 
   // Calcul PID correction
@@ -133,7 +161,7 @@ void loop() {
 
   // uint32_t endMicros = micros();
 
-  //send in Radio roll and pitch angle 
+  //send in Radio roll and pitch angle
   Serial.print(mpu.roll);
   Serial.println(mpu.pitch);
 
