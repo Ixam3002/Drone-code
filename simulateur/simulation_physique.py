@@ -204,11 +204,11 @@ if __name__ == "__main__":
     simu.pid_gains["roll"]["ki"] = 0.8
     simu.pid_gains["roll"]["kd"] = 30.0
 
-    simu.pid_gains["pitch"]["kp"] = 30.0
-    simu.pid_gains["pitch"]["ki"] = 1.0
-    simu.pid_gains["pitch"]["kd"] = 12.0
+    simu.pid_gains["pitch"]["kp"] = 80.0
+    simu.pid_gains["pitch"]["ki"] = 0.8
+    simu.pid_gains["pitch"]["kd"] = 19.0
 
-    simu.angle_max = 45.0
+    simu.angle_max = 5.0
 
     angle = "pitch"
 

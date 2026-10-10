@@ -1,7 +1,7 @@
 ###################
 #DONNEE DRONE
 ###################
-Masse = 0.560 #kg
+Masse = 0.610 #kg
 Longueur = 0.148 #m
 Largeur = 0.100 #m
 Hauteur = 0.05 #m
